@@ -26,10 +26,24 @@
  *   }
  */
 
-import type { CronTask } from 'deepspace/worker'
+import { buildCronContext, type CronTask } from 'deepspace/worker'
+import type { Env } from '../worker'
+import { refreshCalls } from './server/refresh-calls'
 
-export const tasks: CronTask[] = []
+// Once a day, in the evening, on a schedule with a timezone. Never an interval:
+// from Sunday each run also makes one paid AI call.
+export const tasks: CronTask[] = [
+  { name: 'nightly-forecast', schedule: '0 18 * * *', timezone: 'America/Los_Angeles' },
+]
 
-export async function runTask(_name: string, _env: unknown): Promise<void> {
-  // No-op — implement your cron tasks here. Dispatch on `_name`.
+export async function runTask(name: string, env: Env): Promise<void> {
+  if (name !== 'nightly-forecast') return
+
+  const { records } = buildCronContext(env, env.OWNER_USER_ID, `app:${env.DEEPSPACE_APP_ID}`)
+  const summary = await refreshCalls(records, new Date())
+  console.info(`[forecast] wrote ${summary.written} calls, ${summary.failed.length} failed`)
+  // Throw when nothing worked, so the run shows as failed in the cron history.
+  if (summary.written === 0 && summary.failed.length > 0) {
+    throw new Error(`Forecast failed for every spot: ${summary.failed.join(', ')}`)
+  }
 }
