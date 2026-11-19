@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAuthToken, useAuth, useQuery, useUser } from 'deepspace'
 import { Button, useToast } from '@/components/ui'
+import { SessionCard } from '../../components/SessionCard'
 
 type Spot = { name: string }
 
@@ -61,6 +62,8 @@ export default function HomePage() {
       </div>
 
       {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+
+      <SessionCard spotNames={new Map(spots.map((spot) => [spot.recordId, spot.data.name]))} />
 
       {!loading && spots.length === 0 && (
         <p className="text-sm text-muted-foreground">
