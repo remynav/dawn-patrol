@@ -1,4 +1,7 @@
 import type { ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
+import { searchTown } from './search-town'
 
-export const actions: Record<string, ActionHandler<Env>> = {}
+export const actions: Record<string, ActionHandler<Env>> = {
+  searchTown,
+}
