@@ -28,6 +28,11 @@ const VERDICT_RANK: Record<Verdict, number> = { on: 0, maybe: 1, 'no-go': 2 }
 // The `settings` collection (admin-only key/value rows) holds the last manual refresh time.
 const LAST_REFRESH_KEY = 'lastRefreshAt'
 
+/** Turns one line per spot into a short text. Returns '' when it cannot. */
+export type Summarize = (lines: string[]) => Promise<string>
+
+const VERDICT_LABEL: Record<Verdict, string> = { on: "IT'S ON", maybe: 'MAYBE', 'no-go': 'NO-GO' }
+
 export interface RefreshSummary {
   written: number // calls saved
   failed: string[] // names of spots whose forecast could not be fetched or scored
@@ -37,11 +42,14 @@ export async function refreshCalls(
   records: Records,
   now: Date,
   fetchFn: typeof fetch = fetch,
+  summarize?: Summarize,
 ): Promise<RefreshSummary> {
   const spots = (await records.query('spots', { limit: MAX_SPOTS })) as Stored[]
   const summary: RefreshSummary = { written: 0, failed: [] }
   // The best-scoring spot so far, to propose for tomorrow's session.
   let best: { spotId: string; date: string; verdict: Verdict } | null = null
+  // One line per scored spot, for the AI summary.
+  const lines: string[] = []
 
   // One spot at a time. A failure on one spot must not stop the others.
   for (const spot of spots) {
@@ -51,6 +59,7 @@ export async function refreshCalls(
       const score = scoreSpot(day, rulesOf(spot.data))
       await saveCall(records, { spotId: spot.recordId, date: day.date, ...score, summary: '' })
       summary.written++
+      lines.push(`${name}: ${VERDICT_LABEL[score.verdict]}. ${score.reasons.join('; ')}`)
       // Strictly better only, so on a tie the spot added first wins.
       if (!best || VERDICT_RANK[score.verdict] < VERDICT_RANK[best.verdict]) {
         best = { spotId: spot.recordId, date: day.date, verdict: score.verdict }
@@ -61,7 +70,12 @@ export async function refreshCalls(
     }
   }
 
-  if (best) await saveSession(records, best.date, best.spotId)
+  if (best) {
+    await saveSession(records, best.date, best.spotId)
+    // The summary is optional: an empty result just leaves the reasons on their own.
+    const text = summarize ? await summarize(lines) : ''
+    if (text) await saveCall(records, { spotId: best.spotId, date: best.date, summary: text })
+  }
   return summary
 }
 
@@ -121,6 +135,7 @@ export async function refreshCallsWithCooldown(
   records: Records,
   now: Date,
   fetchFn: typeof fetch = fetch,
+  summarize?: Summarize,
 ): Promise<ManualRefreshResult> {
   const rows = (await records.query('settings', { where: { key: LAST_REFRESH_KEY }, limit: 1 })) as Stored[]
   const last = rows[0]
@@ -138,5 +153,5 @@ export async function refreshCallsWithCooldown(
   if (last) await records.update('settings', last.recordId, stamp)
   else await records.create('settings', stamp)
 
-  return { ok: true, summary: await refreshCalls(records, now, fetchFn) }
+  return { ok: true, summary: await refreshCalls(records, now, fetchFn, summarize) }
 }

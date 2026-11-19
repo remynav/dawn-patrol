@@ -29,6 +29,7 @@
 import { buildCronContext, type CronTask } from 'deepspace/worker'
 import type { Env } from '../worker'
 import { refreshCalls } from './server/refresh-calls'
+import { summarizeCalls } from './server/summarize'
 
 // Once a day, in the evening, on a schedule with a timezone. Never an interval:
 // from Sunday each run also makes one paid AI call.
@@ -39,8 +40,10 @@ export const tasks: CronTask[] = [
 export async function runTask(name: string, env: Env): Promise<void> {
   if (name !== 'nightly-forecast') return
 
-  const { records } = buildCronContext(env, env.OWNER_USER_ID, `app:${env.DEEPSPACE_APP_ID}`)
-  const summary = await refreshCalls(records, new Date())
+  const ctx = buildCronContext(env, env.OWNER_USER_ID, `app:${env.DEEPSPACE_APP_ID}`)
+  const summary = await refreshCalls(ctx.records, new Date(), fetch, (lines) =>
+    summarizeCalls(ctx.integrations.call, lines),
+  )
   console.info(`[forecast] wrote ${summary.written} calls, ${summary.failed.length} failed`)
   // Throw when nothing worked, so the run shows as failed in the cron history.
   if (summary.written === 0 && summary.failed.length > 0) {

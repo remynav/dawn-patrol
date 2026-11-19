@@ -137,6 +137,39 @@ describe('refreshCalls and tomorrow\'s session', () => {
   })
 })
 
+describe('refreshCalls and the AI summary', () => {
+  it('asks for one summary per run and saves it on the proposed spot only', async () => {
+    const { records, tables } = fakeRecords({
+      spots: [spot('windy', 'Windy Point', 10), spot('calm', 'Calm Cove', 15)],
+    })
+    const summarize = vi.fn(async (_lines: string[]) => 'Calm Cove is the pick.')
+    await refreshCalls(records, NOW, okFetch(), summarize)
+
+    expect(summarize).toHaveBeenCalledTimes(1)
+    expect(summarize.mock.calls[0][0]).toEqual([
+      expect.stringMatching(/^Windy Point: NO-GO\. Swell 3\.7 ft: pass; /),
+      expect.stringMatching(/^Calm Cove: IT'S ON\. /),
+    ])
+    expect(tables.calls.find((c) => c.data.spotId === 'calm')!.data.summary).toBe('Calm Cove is the pick.')
+    expect(tables.calls.find((c) => c.data.spotId === 'windy')!.data.summary).toBe('')
+  })
+
+  it('keeps the verdicts and reasons when the summary comes back empty', async () => {
+    const { records, tables } = fakeRecords({ spots: [spot('calm', 'Calm Cove', 15)] })
+    const result = await refreshCalls(records, NOW, okFetch(), async () => '')
+    expect(result).toEqual({ written: 1, failed: [] })
+    expect(tables.calls[0].data.verdict).toBe('on')
+    expect(tables.calls[0].data.summary).toBe('')
+  })
+
+  it('does not ask for a summary when no spot was scored', async () => {
+    const { records } = fakeRecords({ spots: [spot('a', 'Spot A', 15)] })
+    const summarize = vi.fn(async () => 'unused')
+    await refreshCalls(records, NOW, failingFetch(), summarize)
+    expect(summarize).not.toHaveBeenCalled()
+  })
+})
+
 describe('refreshCallsWithCooldown', () => {
   it('runs the first time, then refuses for ten minutes', async () => {
     const { records, tables } = fakeRecords({ spots: [spot('calm', 'Calm Cove', 15)] })

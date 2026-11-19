@@ -8,6 +8,7 @@
 import { buildCronContext, type ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { refreshCallsWithCooldown } from '../server/refresh-calls'
+import { summarizeCalls } from '../server/summarize'
 
 export const refreshNow: ActionHandler<Env> = async ({ userId, env }) => {
   // Server actions bypass role checks, so check the caller ourselves.
@@ -15,8 +16,11 @@ export const refreshNow: ActionHandler<Env> = async ({ userId, env }) => {
     return { success: false, error: 'Only the captain can refresh the forecast.' }
   }
 
-  const { records } = buildCronContext(env, env.OWNER_USER_ID, `app:${env.DEEPSPACE_APP_ID}`)
-  const result = await refreshCallsWithCooldown(records, new Date())
+  const ctx = buildCronContext(env, env.OWNER_USER_ID, `app:${env.DEEPSPACE_APP_ID}`)
+  // One paid AI call per refresh, limited by the cooldown.
+  const result = await refreshCallsWithCooldown(ctx.records, new Date(), fetch, (lines) =>
+    summarizeCalls(ctx.integrations.call, lines),
+  )
   if (!result.ok) {
     return { success: false, error: `Refreshed recently. Try again in ${result.minutesLeft} min.` }
   }
