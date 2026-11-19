@@ -11,6 +11,7 @@
 import { useState } from 'react'
 import { getAuthToken, useMutations, useQuery, useUser } from 'deepspace'
 import { Button, Input, Label, useToast } from '@/components/ui'
+import { COMPASS_POINTS } from '@/lib/compass'
 import type { Town } from '../../../actions/search-town'
 
 const MAX_SPOTS = 6
@@ -20,14 +21,15 @@ type Spot = {
   name: string
   lat: number
   lon: number
-  minSwellM: number
-  maxSwellM?: number
+  minSwellFt: number
+  maxSwellFt?: number
   minPeriodS: number
-  swellDeg: number
-  swellTolDeg: number
+  // Compass points the swell may come from, e.g. ['SW', 'W'].
+  swellDirs: string[]
   tideBands: string[]
-  maxWindKph: number
-  offshoreDeg: number
+  maxWindMph: number
+  // Compass points the wind comes from when it is offshore at this spot.
+  offshoreDirs: string[]
 }
 
 // The form keeps every field as text so inputs can be empty while typing.
@@ -36,13 +38,10 @@ const EMPTY_FORM = {
   name: '',
   lat: '',
   lon: '',
-  minSwellM: '0.8',
-  maxSwellM: '',
+  minSwellFt: '2.5',
+  maxSwellFt: '',
   minPeriodS: '7',
-  swellDeg: '',
-  swellTolDeg: '30',
-  maxWindKph: '15',
-  offshoreDeg: '',
+  maxWindMph: '10',
 }
 type FormState = typeof EMPTY_FORM
 
@@ -118,15 +117,14 @@ export default function SpotsPage() {
 /** One-line summary of a spot's rules, shown to everyone. */
 function describeRules(spot: Spot): string {
   const swell =
-    spot.maxSwellM != null
-      ? `${spot.minSwellM} to ${spot.maxSwellM} m`
-      : `at least ${spot.minSwellM} m`
-  const tide = (spot.tideBands ?? []).join(', ') || 'none'
+    spot.maxSwellFt != null
+      ? `${spot.minSwellFt} to ${spot.maxSwellFt} ft`
+      : `at least ${spot.minSwellFt} ft`
+  const list = (items?: string[]) => (items ?? []).join(', ') || 'none'
   return (
-    `Swell ${swell}, period at least ${spot.minPeriodS} s, ` +
-    `from ${spot.swellDeg}° (±${spot.swellTolDeg}°). ` +
-    `Tide: ${tide}. ` +
-    `Wind up to ${spot.maxWindKph} km/h, or offshore from ${spot.offshoreDeg}°.`
+    `Swell ${swell}, period at least ${spot.minPeriodS} s, from ${list(spot.swellDirs)}. ` +
+    `Tide: ${list(spot.tideBands)}. ` +
+    `Wind up to ${spot.maxWindMph} mph, or offshore from ${list(spot.offshoreDirs)}.`
   )
 }
 
@@ -142,6 +140,8 @@ function AddSpotForm() {
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [tideBands, setTideBands] = useState<string[]>([...TIDE_BANDS])
+  const [swellDirs, setSwellDirs] = useState<string[]>([])
+  const [offshoreDirs, setOffshoreDirs] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
   const setField = (field: keyof FormState, value: string) =>
@@ -186,13 +186,12 @@ function AddSpotForm() {
     }))
   }
 
-  const toggleTideBand = (band: string) =>
-    setTideBands((current) =>
-      current.includes(band) ? current.filter((b) => b !== band) : [...current, band],
-    )
+  // Add the item to a list if it is missing, remove it if it is there.
+  const toggle = (list: string[], item: string) =>
+    list.includes(item) ? list.filter((other) => other !== item) : [...list, item]
 
   const save = async () => {
-    const spot = buildSpot(form, tideBands)
+    const spot = buildSpot(form, { tideBands, swellDirs, offshoreDirs })
     if (typeof spot === 'string') {
       toast.warning('Check the form', spot)
       return
@@ -204,6 +203,8 @@ function AddSpotForm() {
       toast.success('Spot added', spot.name)
       setForm(EMPTY_FORM)
       setTideBands([...TIDE_BANDS])
+      setSwellDirs([])
+      setOffshoreDirs([])
       setTowns(null)
       setQuery('')
     } catch (e) {
@@ -230,7 +231,7 @@ function AddSpotForm() {
     <section className="mt-10 rounded-lg border border-border bg-card p-6">
       <h2 className="mb-4 text-lg font-semibold">Add a spot</h2>
 
-      <Label htmlFor="town">1. Find the nearest town</Label>
+      <Label htmlFor="town">1. Find starting coordinates (optional)</Label>
       <div className="mt-1 flex gap-2">
         <Input
           id="town"
@@ -244,7 +245,8 @@ function AddSpotForm() {
         </Button>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        Search finds towns, not beaches. You can also skip it and type coordinates below.
+        Search finds towns, not beaches. It only fills in starting coordinates: each spot you
+        save has its own name, coordinates and rules, even when two are near the same town.
       </p>
 
       {towns && towns.length === 0 && (
@@ -283,30 +285,30 @@ function AddSpotForm() {
 
       <p className="mb-2 mt-6 text-sm font-medium">3. Rules for this spot</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {numberField('minSwellM', 'Min swell (m)')}
-        {numberField('maxSwellM', 'Max swell (m)', 'optional')}
+        {numberField('minSwellFt', 'Min swell (ft)')}
+        {numberField('maxSwellFt', 'Max swell (ft)', 'optional')}
         {numberField('minPeriodS', 'Min period (s)')}
-        {numberField('swellDeg', 'Swell from (°)', '0 to 360')}
-        {numberField('swellTolDeg', 'Swell tolerance (±°)')}
-        {numberField('maxWindKph', 'Max wind (km/h)')}
-        {numberField('offshoreDeg', 'Offshore wind from (°)', '0 to 360')}
+        {numberField('maxWindMph', 'Max wind (mph)')}
       </div>
 
-      <fieldset className="mt-4">
-        <legend className="text-sm font-medium">Tides that work</legend>
-        <div className="mt-1 flex gap-4">
-          {TIDE_BANDS.map((band) => (
-            <label key={band} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={tideBands.includes(band)}
-                onChange={() => toggleTideBand(band)}
-              />
-              {band}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <CheckboxGroup
+        legend="Swell directions that work (where the swell comes from)"
+        options={COMPASS_POINTS}
+        selected={swellDirs}
+        onToggle={(point) => setSwellDirs((current) => toggle(current, point))}
+      />
+      <CheckboxGroup
+        legend="Offshore wind directions (where the wind comes from)"
+        options={COMPASS_POINTS}
+        selected={offshoreDirs}
+        onToggle={(point) => setOffshoreDirs((current) => toggle(current, point))}
+      />
+      <CheckboxGroup
+        legend="Tides that work"
+        options={TIDE_BANDS}
+        selected={tideBands}
+        onToggle={(band) => setTideBands((current) => toggle(current, band))}
+      />
 
       <Button className="mt-6" onClick={save} loading={saving}>
         Add spot
@@ -315,11 +317,40 @@ function AddSpotForm() {
   )
 }
 
+/** A row of labelled checkboxes, used for compass points and tide bands. */
+function CheckboxGroup(props: {
+  legend: string
+  options: readonly string[]
+  selected: string[]
+  onToggle: (option: string) => void
+}) {
+  return (
+    <fieldset className="mt-4">
+      <legend className="text-sm font-medium">{props.legend}</legend>
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        {props.options.map((option) => (
+          <label key={option} className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={props.selected.includes(option)}
+              onChange={() => props.onToggle(option)}
+            />
+            {option}
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  )
+}
+
 /**
  * Turn the text form into a Spot. Returns a message string when a field is
  * invalid, so the caller can show it instead of saving.
  */
-function buildSpot(form: FormState, tideBands: string[]): Spot | string {
+function buildSpot(
+  form: FormState,
+  picked: { tideBands: string[]; swellDirs: string[]; offshoreDirs: string[] },
+): Spot | string {
   // Number('') is 0, so treat blank as "not a number" explicitly.
   const num = (text: string) => (text.trim() === '' ? NaN : Number(text))
   const inRange = (value: number, min: number, max: number) => value >= min && value <= max
@@ -332,31 +363,27 @@ function buildSpot(form: FormState, tideBands: string[]): Spot | string {
   if (!inRange(lat, -90, 90)) return 'Latitude must be between -90 and 90.'
   if (!inRange(lon, -180, 180)) return 'Longitude must be between -180 and 180.'
 
-  const minSwellM = num(form.minSwellM)
-  if (!(minSwellM >= 0)) return 'Min swell must be 0 or more.'
-  const maxSwellM = form.maxSwellM.trim() === '' ? undefined : num(form.maxSwellM)
-  if (maxSwellM !== undefined && !(maxSwellM > minSwellM)) {
+  const minSwellFt = num(form.minSwellFt)
+  if (!(minSwellFt >= 0)) return 'Min swell must be 0 or more.'
+  const maxSwellFt = form.maxSwellFt.trim() === '' ? undefined : num(form.maxSwellFt)
+  if (maxSwellFt !== undefined && !(maxSwellFt > minSwellFt)) {
     return 'Max swell must be bigger than min swell, or left empty.'
   }
 
   const minPeriodS = num(form.minPeriodS)
   if (!(minPeriodS >= 0)) return 'Min period must be 0 or more.'
 
-  const swellDeg = num(form.swellDeg)
-  const offshoreDeg = num(form.offshoreDeg)
-  if (!inRange(swellDeg, 0, 360)) return 'Swell direction must be between 0 and 360.'
-  if (!inRange(offshoreDeg, 0, 360)) return 'Offshore wind direction must be between 0 and 360.'
+  const maxWindMph = num(form.maxWindMph)
+  if (!(maxWindMph >= 0)) return 'Max wind must be 0 or more.'
 
-  const swellTolDeg = num(form.swellTolDeg)
-  if (!inRange(swellTolDeg, 0, 180)) return 'Swell tolerance must be between 0 and 180.'
-
-  const maxWindKph = num(form.maxWindKph)
-  if (!(maxWindKph >= 0)) return 'Max wind must be 0 or more.'
-
-  if (tideBands.length === 0) return 'Pick at least one tide.'
+  if (picked.swellDirs.length === 0) return 'Pick at least one swell direction.'
+  if (picked.offshoreDirs.length === 0) return 'Pick at least one offshore wind direction.'
+  if (picked.tideBands.length === 0) return 'Pick at least one tide.'
 
   return {
-    name, lat, lon, minSwellM, maxSwellM, minPeriodS,
-    swellDeg, swellTolDeg, tideBands, maxWindKph, offshoreDeg,
+    name, lat, lon, minSwellFt, maxSwellFt, minPeriodS, maxWindMph,
+    swellDirs: picked.swellDirs,
+    offshoreDirs: picked.offshoreDirs,
+    tideBands: picked.tideBands,
   }
 }

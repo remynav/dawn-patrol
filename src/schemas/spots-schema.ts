@@ -8,19 +8,19 @@ export const spotsSchema: CollectionSchema = {
     { name: 'name', storage: 'text', interpretation: 'plain', required: true, maxLength: 80 },
     { name: 'lat', storage: 'number', interpretation: 'plain', required: true },
     { name: 'lon', storage: 'number', interpretation: 'plain', required: true },
-    // Swell size in metres. maxSwellM is optional (no upper limit when empty).
-    { name: 'minSwellM', storage: 'number', interpretation: 'plain' },
-    { name: 'maxSwellM', storage: 'number', interpretation: 'plain' },
+    // Swell size in feet. maxSwellFt is optional (no upper limit when empty).
+    { name: 'minSwellFt', storage: 'number', interpretation: 'plain' },
+    { name: 'maxSwellFt', storage: 'number', interpretation: 'plain' },
     // Open-Meteo MEAN swell period in seconds (lower than the peak period surf sites quote).
     { name: 'minPeriodS', storage: 'number', interpretation: 'plain' },
-    // Ideal swell direction (degrees the swell comes FROM) and tolerance either side.
-    { name: 'swellDeg', storage: 'number', interpretation: 'plain' },
-    { name: 'swellTolDeg', storage: 'number', interpretation: 'plain' },
+    // JSON array of compass points the swell may come FROM, e.g. ["SW","W"].
+    // Points are the eight in src/lib/compass.ts.
+    { name: 'swellDirs', storage: 'text', interpretation: { kind: 'json' } },
     // JSON array of allowed tide bands, e.g. ["low","mid"].
     { name: 'tideBands', storage: 'text', interpretation: { kind: 'json' } },
-    { name: 'maxWindKph', storage: 'number', interpretation: 'plain' },
-    // Direction the wind comes FROM when it is offshore at this spot.
-    { name: 'offshoreDeg', storage: 'number', interpretation: 'plain' },
+    { name: 'maxWindMph', storage: 'number', interpretation: 'plain' },
+    // JSON array of compass points the wind comes FROM when it is offshore here.
+    { name: 'offshoreDirs', storage: 'text', interpretation: { kind: 'json' } },
   ],
   permissions: {
     viewer: { read: false, create: false, update: false, delete: false },
