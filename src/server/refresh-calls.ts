@@ -10,7 +10,7 @@
 
 import type { CronContext } from 'deepspace/worker'
 import { fetchTomorrow } from '../lib/forecast'
-import { scoreSpot, type SpotRules } from '../lib/score'
+import { scoreSpot, type SpotRules, type Verdict } from '../lib/score'
 
 type Records = CronContext['records']
 
@@ -22,6 +22,9 @@ interface Stored {
 
 export const MAX_SPOTS = 6
 export const COOLDOWN_MINUTES = 10
+export const DEFAULT_MEET_TIME = '06:00'
+// Best verdict first, for picking the proposed spot.
+const VERDICT_RANK: Record<Verdict, number> = { on: 0, maybe: 1, 'no-go': 2 }
 // The `settings` collection (admin-only key/value rows) holds the last manual refresh time.
 const LAST_REFRESH_KEY = 'lastRefreshAt'
 
@@ -37,6 +40,8 @@ export async function refreshCalls(
 ): Promise<RefreshSummary> {
   const spots = (await records.query('spots', { limit: MAX_SPOTS })) as Stored[]
   const summary: RefreshSummary = { written: 0, failed: [] }
+  // The best-scoring spot so far, to propose for tomorrow's session.
+  let best: { spotId: string; date: string; verdict: Verdict } | null = null
 
   // One spot at a time. A failure on one spot must not stop the others.
   for (const spot of spots) {
@@ -46,12 +51,34 @@ export async function refreshCalls(
       const score = scoreSpot(day, rulesOf(spot.data))
       await saveCall(records, { spotId: spot.recordId, date: day.date, ...score, summary: '' })
       summary.written++
+      // Strictly better only, so on a tie the spot added first wins.
+      if (!best || VERDICT_RANK[score.verdict] < VERDICT_RANK[best.verdict]) {
+        best = { spotId: spot.recordId, date: day.date, verdict: score.verdict }
+      }
     } catch (error) {
       console.error(`[forecast] ${name} failed: ${String(error)}`)
       summary.failed.push(name)
     }
   }
+
+  if (best) await saveSession(records, best.date, best.spotId)
   return summary
+}
+
+/**
+ * One session per date, for the crew to RSVP to. Create it open with the
+ * proposed spot, or update the proposal while it is still open. A session the
+ * captain has confirmed is never changed here.
+ */
+async function saveSession(records: Records, date: string, spotId: string): Promise<void> {
+  const existing = (await records.query('sessions', { where: { date }, limit: 1 })) as Stored[]
+  if (existing.length === 0) {
+    await records.create('sessions', {
+      date, spotId, meetTime: DEFAULT_MEET_TIME, status: 'open', emailedAt: '',
+    })
+  } else if (existing[0].data.status === 'open') {
+    await records.update('sessions', existing[0].recordId, { spotId })
+  }
 }
 
 /** Read the rule columns off a spot record, with safe values for anything missing. */

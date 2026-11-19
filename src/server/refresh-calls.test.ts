@@ -11,7 +11,7 @@ type Row = { recordId: string; data: Record<string, unknown> }
 
 /** A tiny in-memory stand-in for the records API the job uses. */
 function fakeRecords(initial: Record<string, Row[]> = {}) {
-  const tables: Record<string, Row[]> = { spots: [], calls: [], settings: [], ...initial }
+  const tables: Record<string, Row[]> = { spots: [], calls: [], sessions: [], settings: [], ...initial }
   let nextId = 1
   const records: CronContext['records'] = {
     async query(collection, opts) {
@@ -96,6 +96,44 @@ describe('refreshCalls', () => {
     const { records, tables } = fakeRecords({ spots })
     await refreshCalls(records, NOW, okFetch())
     expect(tables.calls).toHaveLength(6)
+  })
+})
+
+describe('refreshCalls and tomorrow\'s session', () => {
+  it('creates one open session proposing the best-scoring spot', async () => {
+    const { records, tables } = fakeRecords({
+      spots: [spot('windy', 'Windy Point', 10), spot('calm', 'Calm Cove', 15)],
+    })
+    await refreshCalls(records, NOW, okFetch())
+    expect(tables.sessions).toHaveLength(1)
+    expect(tables.sessions[0].data).toEqual({
+      date: '2026-11-19', spotId: 'calm', meetTime: '06:00', status: 'open', emailedAt: '',
+    })
+  })
+
+  it('keeps one session per date and updates the proposal while it is open', async () => {
+    const { records, tables } = fakeRecords({
+      spots: [spot('calm', 'Calm Cove', 15)],
+      sessions: [{ recordId: 's1', data: { date: '2026-11-19', spotId: 'old', status: 'open' } }],
+    })
+    await refreshCalls(records, NOW, okFetch())
+    expect(tables.sessions).toHaveLength(1)
+    expect(tables.sessions[0].data.spotId).toBe('calm')
+  })
+
+  it('never changes a session the captain has confirmed', async () => {
+    const { records, tables } = fakeRecords({
+      spots: [spot('calm', 'Calm Cove', 15)],
+      sessions: [{ recordId: 's1', data: { date: '2026-11-19', spotId: 'old', status: 'confirmed' } }],
+    })
+    await refreshCalls(records, NOW, okFetch())
+    expect(tables.sessions[0].data.spotId).toBe('old')
+  })
+
+  it('creates no session when every forecast fails', async () => {
+    const { records, tables } = fakeRecords({ spots: [spot('a', 'Spot A', 15)] })
+    await refreshCalls(records, NOW, failingFetch())
+    expect(tables.sessions).toHaveLength(0)
   })
 })
 
