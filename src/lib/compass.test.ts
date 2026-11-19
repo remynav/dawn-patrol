@@ -21,3 +21,17 @@ describe('compassPoint', () => {
     expect(compassPoint(240)).toBe('SW')
   })
 })
+
+describe('angleBetween and averageDirection', () => {
+  it('measures the short way round', async () => {
+    const { angleBetween } = await import('./compass')
+    expect(angleBetween(350, 10)).toBe(20)
+    expect(angleBetween(90, 270)).toBe(180)
+  })
+
+  it('averages across north', async () => {
+    const { averageDirection } = await import('./compass')
+    expect(averageDirection([350, 10])).toBe(0)
+    expect(averageDirection([260, 280])).toBe(270)
+  })
+})
