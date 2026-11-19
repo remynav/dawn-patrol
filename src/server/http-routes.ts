@@ -248,6 +248,14 @@ export function registerAuthAndIntegrationRoutes(app: Hono<AppContext>): void {
       return c.json({ error: 'Sign in required for this integration' }, 401)
     }
 
+    // Dawn Patrol: developer-billed calls spend the app owner's credits, so
+    // only the owner may make them through this browser-facing route. The app
+    // itself calls integrations from owner-only server actions and cron.
+    // If OWNER_USER_ID is missing this refuses everyone (fails closed).
+    if (billingMode === 'developer' && auth?.userId !== c.env.OWNER_USER_ID) {
+      return c.json({ error: 'Owner only' }, 403)
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': c.req.header('Content-Type') ?? 'application/json',
     }
