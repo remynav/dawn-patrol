@@ -47,6 +47,9 @@ export default function HomePage() {
   }
 
   const loading = spotsStatus === 'loading' || callsStatus === 'loading'
+  const failed = spotsStatus === 'error' || callsStatus === 'error'
+  // Today's date as YYYY-MM-DD in this browser's timezone, to flag an old forecast.
+  const today = new Date().toLocaleDateString('en-CA')
 
   // The newest call for a spot. Dates are YYYY-MM-DD, so comparing text works.
   const latestCall = (spotId: string) =>
@@ -62,6 +65,11 @@ export default function HomePage() {
       </div>
 
       {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {failed && (
+        <p className="mb-4 text-sm text-destructive">
+          Could not load the forecast. Check your connection and reload the page.
+        </p>
+      )}
 
       <SessionCard spotNames={new Map(spots.map((spot) => [spot.recordId, spot.data.name]))} />
 
@@ -104,6 +112,11 @@ export default function HomePage() {
                   <p className="mt-1 text-sm text-muted-foreground">
                     Dawn of {call.data.date} · updated {new Date(call.updatedAt).toLocaleString()}
                   </p>
+                  {call.data.date < today && (
+                    <p className="mt-1 text-sm text-warning">
+                      This forecast is for a day that has passed. A new one runs each evening.
+                    </p>
+                  )}
                   {call.data.summary && <p className="mt-3 text-sm">{call.data.summary}</p>}
                   <ul className="mt-3 space-y-1 text-sm">
                     {(call.data.reasons ?? []).map((reason) => (
