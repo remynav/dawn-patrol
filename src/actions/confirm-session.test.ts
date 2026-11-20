@@ -11,7 +11,7 @@ type Tables = Record<string, Record<string, Record<string, unknown>>>
 function setup(emailResult: unknown = { success: true, data: {} }) {
   const tables: Tables = {
     sessions: { s1: { date: '2026-11-22', spotId: 'old', meetTime: '06:00', status: 'open', emailedAt: '' } },
-    spots: { malibu: { name: 'Surfrider' } },
+    spots: { malibu: { name: 'Surfrider', lat: 34.03, lon: -118.68 } },
     users: {
       captain: { email: 'captain@example.com' },
       ana: { email: 'ana@example.com' },
@@ -83,6 +83,8 @@ describe('confirmSession', () => {
     expect(body.subject).toBe('Dawn Patrol is on: Surfrider, 2026-11-22 at 06:15')
     expect(body.from).toBeUndefined()
     // One body goes to everyone, so it must be true for the captain too.
+    expect(body.text).toContain('Add to Google Calendar: https://calendar.google.com/calendar/render?')
+    expect(body.text).toContain('dates=20261122T061500%2F20261122T081500')
     expect(body.text).toContain('you are the captain or you tapped "I\'m in"')
   })
 

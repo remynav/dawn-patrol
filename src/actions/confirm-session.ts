@@ -6,10 +6,14 @@
  *   - it is sent at most once per session (`emailedAt` records the send),
  *   - it is never retried automatically,
  *   - the crew go on bcc, so nobody sees anyone else's address.
+ *
+ * The email carries an "Add to Google Calendar" link. The email service takes
+ * no attachments, so a link stands in for an invite file.
  */
 
 import type { ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
+import { googleCalendarLink } from '../lib/calendar-link'
 
 // Test accounts use this fake domain. A bad address fails the whole send, so skip them.
 const TEST_EMAIL_SUFFIX = '@deepspace.test'
@@ -38,6 +42,13 @@ export const confirmSession: ActionHandler<Env> = async ({ userId, params, tools
   if (!spot.success) return { success: false, error: 'Spot not found.' }
   const spotName = String(spot.data.record.data.name)
   const date = String(session.data.record.data.date)
+  const calendarLink = googleCalendarLink({
+    title: `Dawn Patrol: ${spotName}`,
+    date,
+    meetTime,
+    lat: Number(spot.data.record.data.lat),
+    lon: Number(spot.data.record.data.lon),
+  })
 
   // The captain's own address is the visible recipient and the reply-to.
   const captainEmail = await emailOf(userId)
@@ -65,6 +76,7 @@ export const confirmSession: ActionHandler<Env> = async ({ userId, params, tools
     text:
       `Dawn Patrol is confirmed.\n\n` +
       `Spot: ${spotName}\nDate: ${date}\nMeet: ${meetTime}\n\n` +
+      `Add to Google Calendar: ${calendarLink}\n\n` +
       `You are getting this because you are the captain or you tapped "I'm in". ` +
       `Reply to reach the captain.`,
   })
