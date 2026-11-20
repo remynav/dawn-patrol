@@ -27,5 +27,6 @@ was proposed and approved.
 
 ## Not done
 
-- Google Calendar invites (stretch goal).
+- The Google Calendar integration. The confirmation email has an "Add to Google Calendar"
+  link instead.
 - Editing a spot (delete and add again).

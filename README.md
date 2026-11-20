@@ -20,8 +20,9 @@ Built on [DeepSpace](https://docs.deep.space) (Cloudflare Workers and Durable Ob
    two-sentence summary on the best spot.
 4. **A session card proposes the best spot** for tomorrow at 06:00. Crew members tap
    **I'm in** or **I'm out**, and everyone sees the lists and who is on the page update live.
-5. **The captain picks the final spot and time and presses Confirm and email crew.** One
-   email goes out and the controls are replaced by "Confirmation email sent".
+5. **The captain picks the final spot and time under "Make the call" and presses Confirm and
+   email crew.** One email goes out with an "Add to Google Calendar" link, and the controls
+   are replaced by "Confirmation email sent".
 
 <!-- TODO before submitting: add screenshots to docs/screenshots/ and uncomment.
 ![Adding a spot](docs/screenshots/1-add-spot.png)
@@ -74,7 +75,10 @@ Left out, and why:
 
 - **`openweathermap/forecast`:** its response has no wind, so wind comes from Open-Meteo.
 - **Open-Meteo `swell_wave_peak_period`:** it comes back null. The mean period is used.
-- **Google Calendar invites:** a stretch goal that did not fit the time.
+- **The Google Calendar integration and invite files:** the email service takes no
+  attachments, and a per-user Google connection is a lot of machinery for one event. The
+  email carries a plain "Add to Google Calendar" link instead, which needs no sign-in and
+  costs nothing.
 
 Cost controls:
 
@@ -103,6 +107,8 @@ averages misses things a surfer would see, such as a swell that fills in late in
 - The captain always receives the confirmation email, whether in or out, because they are
   its main recipient. Crew who tapped in are on bcc.
 - The nightly run is at 6 PM Pacific for every spot, wherever the spot is.
+- The calendar link has no timezone and lasts two hours. Google uses the reader's own
+  timezone, which is right for a crew that lives near the spot.
 
 ## Run it locally
 
@@ -134,6 +140,7 @@ come from the JSON files in [tests/fixtures/](tests/fixtures/).
 | [src/lib/forecast.ts](src/lib/forecast.ts) | Open-Meteo fetch and unit conversion |
 | [src/server/refresh-calls.ts](src/server/refresh-calls.ts) | The forecast job: score every spot, save calls, propose a session |
 | [src/server/summarize.ts](src/server/summarize.ts) | The AI summary with its fallback |
+| [src/lib/calendar-link.ts](src/lib/calendar-link.ts) | The "Add to Google Calendar" link |
 | [src/cron.ts](src/cron.ts) | The nightly schedule |
 | [src/actions/](src/actions/) | Owner-only server actions: searchTown, refreshNow, confirmSession |
 | [src/pages/(app)/home.tsx](<src/pages/(app)/home.tsx>) | Verdict cards and the session card |
