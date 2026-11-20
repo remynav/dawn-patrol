@@ -82,6 +82,8 @@ describe('confirmSession', () => {
     expect(body.bcc).toEqual(['ana@example.com'])
     expect(body.subject).toBe('Dawn Patrol is on: Surfrider, 2026-11-22 at 06:15')
     expect(body.from).toBeUndefined()
+    // One body goes to everyone, so it must be true for the captain too.
+    expect(body.text).toContain('you are the captain or you tapped "I\'m in"')
   })
 
   it('will not email the same session twice', async () => {

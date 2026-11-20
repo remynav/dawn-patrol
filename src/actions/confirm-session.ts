@@ -65,7 +65,8 @@ export const confirmSession: ActionHandler<Env> = async ({ userId, params, tools
     text:
       `Dawn Patrol is confirmed.\n\n` +
       `Spot: ${spotName}\nDate: ${date}\nMeet: ${meetTime}\n\n` +
-      `You are getting this because you tapped "I'm in". Reply to reach the captain.`,
+      `You are getting this because you are the captain or you tapped "I'm in". ` +
+      `Reply to reach the captain.`,
   })
   if (!sent.success) {
     return {

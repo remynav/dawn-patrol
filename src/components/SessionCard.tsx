@@ -216,6 +216,9 @@ function ConfirmControls(props: {
           Confirm and email crew
         </Button>
       </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        You will get a copy of the email too, even if you are out.
+      </p>
     </div>
   )
 }
