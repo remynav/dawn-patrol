@@ -8,13 +8,16 @@
  * Cost: one small paid call per forecast run. The model and max_tokens are
  * always set, because the endpoint's defaults are the largest model and 4096
  * tokens. There is no retry.
+ *
+ * max_tokens has to cover the model's reasoning as well as the two sentences.
+ * With 150 the reasoning used the whole budget and the call failed every time.
  */
 
 /** Calls a platform integration and returns its response body (ctx.integrations.call). */
 export type CallIntegration = (endpoint: string, params: Record<string, unknown>) => Promise<unknown>
 
 const MODEL = 'claude-haiku-5-5'
-const MAX_TOKENS = 150
+const MAX_TOKENS = 1000
 const MAX_SUMMARY_LENGTH = 400
 
 const SYSTEM_PROMPT =
@@ -33,9 +36,15 @@ export async function summarizeCalls(callIntegration: CallIntegration, lines: st
       messages: [{ role: 'user', content: lines.join('\n') }],
     })) as { content?: Array<{ text?: unknown }> }
 
-    // The reply text is at content[0].text.
-    const text = response?.content?.[0]?.text
-    return typeof text === 'string' ? text.trim().slice(0, MAX_SUMMARY_LENGTH) : ''
+    // The reply is a list of blocks. A reasoning block can come first, so take
+    // the first block that carries text.
+    const blocks = Array.isArray(response?.content) ? response.content : []
+    const text = blocks.find((block) => typeof block?.text === 'string')?.text
+    if (typeof text !== 'string') {
+      console.error('[forecast] summary reply had no text')
+      return ''
+    }
+    return text.trim().slice(0, MAX_SUMMARY_LENGTH)
   } catch (error) {
     console.error(`[forecast] summary failed: ${String(error)}`)
     return ''

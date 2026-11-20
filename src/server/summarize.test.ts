@@ -14,7 +14,7 @@ describe('summarizeCalls', () => {
     const [endpoint, params] = call.mock.calls[0] as unknown as [string, Record<string, unknown>]
     expect(endpoint).toBe('anthropic/chat-completion')
     expect(params.model).toBe('claude-haiku-5-5')
-    expect(params.max_tokens).toBe(150)
+    expect(params.max_tokens).toBe(1000)
     expect(params.messages).toEqual([{ role: 'user', content: LINES[0] }])
   })
 
@@ -28,6 +28,16 @@ describe('summarizeCalls', () => {
 
   it('returns an empty string for an unexpected response shape', async () => {
     expect(await summarizeCalls(async () => ({ nope: true }), LINES)).toBe('')
+  })
+
+  it('skips a reasoning block and reads the first text block', async () => {
+    const call = async () => ({
+      content: [
+        { type: 'thinking', thinking: 'Comparing the spots.' },
+        { type: 'text', text: 'Calm Cove is on.' },
+      ],
+    })
+    expect(await summarizeCalls(call, LINES)).toBe('Calm Cove is on.')
   })
 
   it('makes no call when there is nothing to summarize', async () => {
