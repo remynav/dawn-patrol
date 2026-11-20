@@ -9,7 +9,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAuthToken, useAuth, useQuery, useUser } from 'deepspace'
-import { Button, useToast } from '@/components/ui'
+import { Badge, Button, useToast } from '@/components/ui'
 import { SessionCard } from '../../components/SessionCard'
 
 type Spot = { name: string }
@@ -22,10 +22,31 @@ type Call = {
   summary?: string
 }
 
-const VERDICTS: Record<Call['verdict'], { label: string; className: string }> = {
-  on: { label: "IT'S ON", className: 'bg-success text-success-foreground' },
-  maybe: { label: 'MAYBE', className: 'bg-warning text-warning-foreground' },
-  'no-go': { label: 'NO-GO', className: 'bg-destructive text-destructive-foreground' },
+const VERDICTS: Record<Call['verdict'], { label: string; variant: 'success' | 'warning' | 'destructive' }> = {
+  on: { label: "IT'S ON", variant: 'success' },
+  maybe: { label: 'MAYBE', variant: 'warning' },
+  'no-go': { label: 'NO-GO', variant: 'destructive' },
+}
+
+// The mark shown in front of each check.
+const MARKS = {
+  pass: { symbol: '✓', className: 'text-success' },
+  near: { symbol: '~', className: 'text-warning' },
+  fail: { symbol: '✕', className: 'text-destructive' },
+}
+
+/**
+ * A reason is stored as one line, such as
+ * "Wind 13 mph from W: fail (limit 10 mph unless offshore)".
+ * Split it into the fact, the outcome and the note so they can be laid out.
+ */
+function parseReason(reason: string) {
+  const cut = reason.lastIndexOf(': ')
+  const fact = cut === -1 ? reason : reason.slice(0, cut)
+  const result = cut === -1 ? '' : reason.slice(cut + 2)
+  const outcome = result.startsWith('pass') ? 'pass' : result.startsWith('near') ? 'near' : 'fail'
+  const note = result.match(/\((.*)\)$/)?.[1] ?? ''
+  return { fact, outcome, note } as const
 }
 
 export default function HomePage() {
@@ -73,6 +94,12 @@ export default function HomePage() {
 
       <SessionCard spotNames={new Map(spots.map((spot) => [spot.recordId, spot.data.name]))} />
 
+      {spots.length > 0 && (
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Spot by spot
+        </h2>
+      )}
+
       {!loading && spots.length === 0 && (
         <p className="text-sm text-muted-foreground">
           No spots yet.{' '}
@@ -96,32 +123,58 @@ export default function HomePage() {
               className="rounded-lg border border-border bg-card p-5"
             >
               <div className="flex items-center justify-between gap-4">
-                <h2 className="text-lg font-semibold">{spot.data.name}</h2>
+                <h3 className="text-lg font-semibold">{spot.data.name}</h3>
                 {call && (
-                  <span
+                  <Badge
                     data-testid="verdict"
-                    className={`rounded-full px-3 py-1 text-sm font-bold ${VERDICTS[call.data.verdict].className}`}
+                    size="lg"
+                    variant={VERDICTS[call.data.verdict].variant}
+                    className="font-bold"
                   >
                     {VERDICTS[call.data.verdict].label}
-                  </span>
+                  </Badge>
                 )}
               </div>
 
               {call ? (
                 <>
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Dawn of {call.data.date} · updated {new Date(call.updatedAt).toLocaleString()}
                   </p>
                   {call.data.date < today && (
-                    <p className="mt-1 text-sm text-warning">
+                    <p className="mt-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
                       This forecast is for a day that has passed. A new one runs each evening.
                     </p>
                   )}
-                  {call.data.summary && <p className="mt-3 text-sm">{call.data.summary}</p>}
-                  <ul className="mt-3 space-y-1 text-sm">
-                    {(call.data.reasons ?? []).map((reason) => (
-                      <li key={reason}>{reason}</li>
-                    ))}
+                  {call.data.summary && (
+                    <div data-testid="summary" className="mt-4 rounded-md bg-muted px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Tonight&apos;s summary
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed">{call.data.summary}</p>
+                    </div>
+                  )}
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    The five checks
+                  </p>
+                  <ul className="mt-2 space-y-1.5 text-sm">
+                    {(call.data.reasons ?? []).map((reason) => {
+                      const { fact, outcome, note } = parseReason(reason)
+                      return (
+                        <li key={reason} className="flex gap-2">
+                          <span aria-hidden className={`w-4 shrink-0 font-bold ${MARKS[outcome].className}`}>
+                            {MARKS[outcome].symbol}
+                          </span>
+                          <span>
+                            {fact}
+                            <span className="text-muted-foreground">
+                              {outcome === 'near' ? ' · near miss' : ''}
+                              {note ? ` · ${note}` : ''}
+                            </span>
+                          </span>
+                        </li>
+                      )
+                    })}
                   </ul>
                 </>
               ) : (

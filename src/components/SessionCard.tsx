@@ -11,7 +11,7 @@ import { useState } from 'react'
 import {
   getAuthToken, useAuth, useMutations, usePresenceRoom, useQuery, useUser, useUserLookup,
 } from 'deepspace'
-import { Button, Input, Label, useToast } from '@/components/ui'
+import { Badge, Button, Input, Label, useToast } from '@/components/ui'
 import { SCOPE_ID } from '../constants'
 
 type Session = {
@@ -72,13 +72,18 @@ export function SessionCard({ spotNames }: { spotNames: Map<string, string> }) {
   const hereNow = ['You', ...peers.map((peer) => peer.userName || 'Crew member')]
 
   return (
-    <section data-testid="session-card" className="mb-8 rounded-lg border border-border bg-card p-5">
-      <h2 className="text-lg font-semibold">Dawn session, {session.data.date}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {confirmed ? 'Confirmed' : 'Proposed'}: {spotName}, meet at {session.data.meetTime}
-      </p>
+    <section data-testid="session-card" className="mb-10 rounded-lg border border-border bg-card p-5">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Dawn session · {session.data.date}
+        </h2>
+        <Badge variant={confirmed ? 'success' : 'outline'}>{confirmed ? 'Confirmed' : 'Proposed'}</Badge>
+      </div>
+      <p className="mt-2 text-2xl font-bold tracking-tight">{spotName}</p>
+      <p className="text-sm text-muted-foreground">Meet at {session.data.meetTime}</p>
 
-      <div className="mt-4 flex gap-2">
+      <p className="mt-5 text-sm font-medium">Are you coming?</p>
+      <div className="mt-2 flex gap-2">
         <Button
           variant={mine?.data.status === 'in' ? 'default' : 'outline'}
           disabled={!ready}
@@ -95,7 +100,7 @@ export function SessionCard({ spotNames }: { spotNames: Map<string, string> }) {
         </Button>
       </div>
 
-      <dl className="mt-4 space-y-1 text-sm">
+      <dl className="mt-5 space-y-2 text-sm">
         <NameRow label="In" testId="rsvp-in-list" names={namesWith('in')} />
         <NameRow label="Out" testId="rsvp-out-list" names={namesWith('out')} />
         <NameRow label="Here now" testId="here-now-list" names={hereNow} />
@@ -111,7 +116,7 @@ export function SessionCard({ spotNames }: { spotNames: Map<string, string> }) {
         />
       )}
       {isCaptain && session.data.emailedAt && (
-        <p className="mt-4 text-sm text-muted-foreground">
+        <p className="mt-5 border-t border-border pt-4 text-sm text-muted-foreground">
           Confirmation email sent {new Date(session.data.emailedAt).toLocaleString()}.
         </p>
       )}
@@ -121,13 +126,18 @@ export function SessionCard({ spotNames }: { spotNames: Map<string, string> }) {
 
 function NameRow({ label, testId, names }: { label: string; testId: string; names: string[] }) {
   return (
-    <div className="flex gap-2">
-      <dt className="w-20 shrink-0 text-muted-foreground">
+    <div className="flex items-start gap-2">
+      <dt className="w-24 shrink-0 text-muted-foreground">
         {label} ({names.length})
       </dt>
       {/* data-count lets the two-user test read the size of the list. */}
-      <dd data-testid={testId} data-count={names.length}>
-        {names.join(', ') || '—'}
+      <dd data-testid={testId} data-count={names.length} className="flex flex-wrap gap-1.5">
+        {names.length === 0 && <span className="text-muted-foreground">Nobody yet</span>}
+        {names.map((name, index) => (
+          <Badge key={`${name}-${index}`} variant="secondary">
+            {name}
+          </Badge>
+        ))}
       </dd>
     </div>
   )
@@ -185,9 +195,14 @@ function ConfirmControls(props: {
   }
 
   return (
-    <div className="mt-5 border-t border-border pt-4">
-      <p className="text-sm font-medium">Captain: confirm the session</p>
-      <div className="mt-2 flex flex-wrap items-end gap-3">
+    <div data-testid="make-the-call" className="mt-6 rounded-md border border-border bg-muted p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Captain only</p>
+      <p className="mt-1 font-semibold">Make the call</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Pick the final spot and meet time. Confirming emails everyone who is in ({props.inCount} so
+        far), once.
+      </p>
+      <div className="mt-4 flex flex-wrap items-end gap-3">
         <div>
           <Label htmlFor="confirm-spot">Spot</Label>
           <select
@@ -212,10 +227,10 @@ function ConfirmControls(props: {
             onChange={(e) => setMeetTime(e.target.value)}
           />
         </div>
-        <Button onClick={confirm} loading={sending}>
-          Confirm and email crew
-        </Button>
       </div>
+      <Button className="mt-4" onClick={confirm} loading={sending}>
+        Confirm and email crew
+      </Button>
       <p className="mt-2 text-xs text-muted-foreground">
         You will get a copy of the email too, even if you are out.
       </p>
